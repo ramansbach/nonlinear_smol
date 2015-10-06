@@ -2,6 +2,8 @@
 #modifications by Rachael Mansbach
 #just rewrite the fortran code in julia so that I can go through it and understand it
 #then possibly try to run both?
+using Debug
+using PyPlot
 #rate function currently set for linear kernel
 function rate(i,j)
 	return 1.0
@@ -77,11 +79,11 @@ for j = 1:NBMAX
 		index[i,j] = 0.0
 	end
 end
-ndec = 6
+ndec = 5
 nbdec = 40
 dmmax = 0.05
-tmax = 100
-tprint = 99.99999
+tmax = 10.0
+tprint = 5.0
 tnext = 0
 nbin = nbdec*ndec
 nbin1 = nbin+1
@@ -177,13 +179,19 @@ initializeKs(massb,massc,index,delm,nbdec,nbin1)
 #mden(i) = mass in bin i.
 #nden(i) = number (density?) of particles in bin i
 #initial conditions get toggled here
+mass=0
+mmax=0
+qj=0
+qjp1=0
+
+function main(ndec,nbdec,nbin,nbin1,imin,imax,iminold,imaxold,time,dt,dt2,tmax,tprint,tnext,dmmax,dlogm,mmerge,rateav,nmin,dmfrac,dm,lossmx,ntot,ntot2,mtot,m2tot,massb,massc,delm,dlnm,mmax,mass,mden,mtmp,gain,loss,c,q,nden,rho,qj,qjp1,njmhalf,njphalf,njtmp,nitmp,w1,w2,ratio)
 imin = 1
 imax = 1 #for non monodisperse, this = bin-number of largest bin containing mass
 nmin = 1.0e-30
 mden[1] = 1.0 #monodisperse initial conditions
 mtmp[1] = 0.0
 nden[1] = 1.0
-
+step = 1
 for i = 2:nbin1
 	mden[i] = 0.0
 	mtmp[i] = 0.0
@@ -196,12 +204,13 @@ tnext = tnext + tprint
 
 #Open output file
 
-f = open("merge.out","w")
+f = open("merge1.out","w")
 @printf(f,"ndec,nbdec = %10d,%10d \n",ndec,nbdec)
 @printf(f,"dmmax,dt,tmax,tprint = %13.5f %13.5f %13.5f %13.5f\n",dmmax,dt,tmax,tprint)
 
 #Integration loop
-
+fig = figure()
+ax = axes()
 while time < tmax #100
  	# First compute mden (called mtmp) at half the timestep
 
@@ -220,6 +229,7 @@ while time < tmax #100
 			njmhalf = 1.0
 			njphalf = (massb[j+1]/massb[j])^(q[j]-1.0) #q is initialized to zeros by definition, I believe
 		#slightly concerned about normalization -- may want to check on this
+			
 		end
 		for i=j:-1:imin
 			k = index[i,j]
@@ -227,7 +237,7 @@ while time < tmax #100
 			#put merger products into bin k			
 				k = -1*k
 				#compute effective rate coefficient approximately
-				if (j < nbdec)#easy version
+				if (j <= nbdec)#easy version
 					rateav = rate(massc[i],massc[j])
 				else
 					w1 = njmhalf*(massc[i]+massb[j])
@@ -240,12 +250,18 @@ while time < tmax #100
 					#half the amount of mass because we're only dealing with one bin
 					mmerge = 0.5*mmerge
 				end
+				#if isnan(mmerge)
+				#	@bp
+				#end
 				loss[i] += mmerge
 				gain[k] += mmerge
 				mmerge = (dt2*rateav*mden[i]/massc[i])*mden[j]#loss/gain from bin j ->k
 				if i==j
 					mmerge = 0.5*mmerge
 				end
+				#if isnan(mmerge)
+				#	@bp
+				#end
 				loss[j] += mmerge
 				gain[k] += mmerge
 			elseif k > 0
@@ -263,6 +279,9 @@ while time < tmax #100
 				if (i==j)
 					mmerge = 0.5*mmerge
 				end
+				#if isnan(mmerge)
+				#	@bp
+				#end
 				loss[i] += mmerge
 				gain[k] += mmerge
 				
@@ -272,6 +291,9 @@ while time < tmax #100
 					if i==j
 						mmerge = 0.5*mmerge
 					end
+					#if isnan(mmerge)
+					#	@bp
+					#end
 					loss[j] += mmerge
 					gain[k] += mmerge
 				end
@@ -292,6 +314,9 @@ while time < tmax #100
 					if (i==j)
 						mmerge = 0.5*mmerge
 					end
+					#if isnan(mmerge)
+					#	@bp
+					#end
 					loss[i] += mmerge
 					gain[k+1] += mmerge
 
@@ -305,6 +330,9 @@ while time < tmax #100
 					if i==j 
 						mmerge = 0.5*mmerge
 					end
+					#if isnan(mmerge)
+					#	@bp
+					#end
 					loss[j] += mmerge
 					gain[k+1] += mmerge
 
@@ -316,6 +344,9 @@ while time < tmax #100
 					if (i==j)
 						mmerge = 0.5*mmerge
 					end
+					#if isnan(mmerge)
+					#	@bp
+					#end
 					loss[i] += mmerge
 					gain[k+1] += mmerge
 
@@ -328,6 +359,9 @@ while time < tmax #100
 					if (i==j)
 						mmerge = 0.5*mmerge
 					end
+					#if isnan(mmerge)
+					#	@bp
+					#end
 
 					loss[j] += mmerge
 					gain[k+1] += mmerge
@@ -343,6 +377,9 @@ while time < tmax #100
 	#Add net change to each mass bin	
 
 	for i=1:nbin
+		#if isnan(gain[i]) || isnan(loss[i])
+		#	@bp
+		#end
 		mtmp[i] = mden[i] + gain[i] - loss[i]
 		nden[i] = mtmp[i]/massc[i]
 	end
@@ -409,7 +446,7 @@ while time < tmax #100
 			#put merger products into bin k			
 				k = -1*k
 				#compute effective rate coefficient approximately
-				if (j < nbdec)#easy version
+				if (j <= nbdec)#easy version
 					rateav = rate(massc[i],massc[j])
 				else
 					w1 = njmhalf*(massc[i]+massb[j])
@@ -593,15 +630,36 @@ while time < tmax #100
 		end #820
 		@printf(f,"\nTime = %14.6f, N=%14.6f, M=%14.6f, M2=%14.6f\nN=%14.6f\n",time,ntot,mtot,m2tot,ntot2)
 		j = min(imax+2,nbin)
+		nitmps = Array(Float64,length(imin:j),1)
+		ind = 1
 		for i = imin:j #900
 			if (i > nbdec) && (i <= imax)
 				nitmp = (c[i]/massb[i])*(massc[i]/massb[i])^(q[i]-1)
 			else
 				nitmp = nden[i]/delm[i]
 			end
-			@printf("%14.6f %14.6f %14.6f %14.6f ",massc[i],nitmp,mden[i],nitmp*massc[i]^2)
+			nitmps[ind] = nitmp*massc[i]^2
+			ind+=1
+			@printf(f,"%14.6f %14.6f %14.6f %14.6f\n",massc[i],nitmp,mden[i],nitmp*massc[i]^2)
 		end #900
+		#@bp
+		plot(log(massc[imin:j]),log(nitmps),linestyle=":")
+		nal10 = analyticA1log(time,log(massc[imin:j]))
+		plot(log(massc[imin:j]),nal10,linestyle="--")	
 		tnext += tprint
 	end
+	step+=1
 end
+println(step)
 close(f)
+end
+
+function analyticA1log(t,lms)
+	nt = zeros(size(lms))
+	for i = 1:length(nt)
+		nt[i] = 2*lms[i] + (exp(lms[i])-1)*log(t/(t+2))+log(4/(t+2)^2)
+	end
+	return nt
+end
+#main(
+#main(ndec,nbdec,nbin,nbin1,imin,imax,iminold,imaxold,time,dt,dt2,tmax,tprint,tnext,dmmax,dlogm,mmerge,rateav,nmin,dmfrac,dm,lossmx,ntot,ntot2,mtot,m2tot,massb,massc,delm,dlnm,mmax,mass,mden,mtmp,gain,loss,c,q,nden,rho,qj,qjp1,njmhalf,njphalf,njtmp,nitmp,w1,w2,ratio)
