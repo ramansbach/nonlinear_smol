@@ -5,7 +5,7 @@
 using Debug
 using PyPlot
 #rate function currently set for linear kernel
-function rate1(i,j)
+#=function rate1(i,j)
 	#return 1.0
 	#return (i+j)/2
 	#return (i^0.5*j^0.5+i^0.5*j^0.5)
@@ -16,7 +16,7 @@ function rate1(i,j)
 	k = 1.0
 	return k*(i^mu*j^nu+i^nu*j^mu)
 end
-
+=#
 
 #preallocate arrays, SET ALL VARIABLES TO ZERO INITIALLY
 #=NBMAX=1024
@@ -239,7 +239,7 @@ end
 
 #initMassBins(massb,massc,nbdec,nbin,dlogm,nbin1,dlnm)
 
-function initializeKs(massb,massc,index,delm,nbdec,nbin1)
+function initializeKs(massb,massc,index,delm,nbdec,nbin,nbin1)
 #Store index(i,j) = k such that m_(k-1/2) < m_i + m_(j-1/2) <= m_(k+1/2).
 #index(i,j) = -k if m_i + m_(j+1/2) <= m_(k+1/2).
 mmax = massb[nbin1]
@@ -366,8 +366,8 @@ f = open("merge1.out","w")
 @printf(f,"dmmax,dt,tmax,tprint = %13.5f %13.5f %13.5f %13.5f\n",dmmax,dt,tmax,tprint)
 
 #Integration loop
-fig = figure()
-ax = axes()
+#fig = figure()
+#ax = axes()
 #@bp
 while time < tmax #100
  	# First compute mden (called mtmp) at half the timestep
@@ -843,7 +843,7 @@ while time < tmax #100
 				ntot2 += nden[i]
 			end
 		end #820
-		println("printing at time = ",time)
+		#println("printing at time = ",time)
 		@printf(f,"\nTime = %14.6e, N=%14.6e, M=%14.6e, M2=%14.6e\nN=%14.6e\n",time,ntot,mtot,m2tot,ntot2)
 		if time > 6.3
 		@bp
@@ -865,7 +865,10 @@ while time < tmax #100
 			@printf(f,"%14.6e %14.6e %14.6e %14.6e\n",massc[i],nitmp,mden[i],nitmp*massc[i]^2)
 		end #900
 		#@bp
-		plot(log(massc[imin:j]),log(nitmps),linestyle=":")
+		#=
+		if mod(step,10)==0
+			plot(log(massc[imin:j]),log(nitmps),linestyle=":")
+		end=#
 		#nal10 = analyticsol(time,log(massc[imin:j]))
 		#plot(log(massc[imin:j]),nal10,linestyle="--")	
 		tnext += tprint
@@ -873,14 +876,15 @@ while time < tmax #100
 	end
 
 end
-println(step)
+#println(step)
 close(f)
-fig2 = figure()
-	for i = 1:10
-		plot(ts,cs[:,i],":")	
-		a = analytic1(rate1,ts,i)
-		#plot(ts,a,"--")
-	end
+#fig2 = figure()
+	#for i = 1:10
+	#	figure()
+		#plot(ts,cs[:,i],":")	
+		#a = analytic1(rate1,ts,i)
+		#plot(ts,a)
+	#end
 	
 	f2 = open("mergecs2.out","w")
 	for tind = 1:length(ts)
@@ -926,7 +930,7 @@ function analyticAplog(t,lms)
 	
 end
 
-function main(fname)
+function main(fname,outfname,nmols,ks,mus,lambdas)
 #start by running a full smoluchowski run and plot the first 5 n concentrations
 
 #preallocate arrays, SET ALL VARIABLES TO ZERO INITIALLY
@@ -1035,26 +1039,33 @@ end
 nfile = open(fname,"r")
 lines = readlines(nfile)
 close(nfile)
-nsarray = Array(Float64,length(lines),6);
+
+nsarray = Array(Float64,length(lines),nmols+1)
 for i = 1:length(lines)
 	nsarray[i,:] = float(split(chomp(lines[i])))
 end
-ks = [1.0,2.0,3.0,4.0,5.0,6.0,7.0]
+#ks = [0.045 0.15 0.5]
 rmsd = Inf
+mumin = Inf
+lambdamin = Inf
 tsmin = 0
 csmin = 0
 kmin = Inf
+#mus = [-0.3] 
+#lambdas = [-0.5]
+#ninits = nsarray[1,:]
 #tsmin = Array(Float64,Int(round(tmax/tprint))+1,1)
 #csmin = Array(Float64,Int(round(tmax/tprint))+1,NBMAX)
+for lambda in lambdas
+for mu in mus
 for k in ks
-ndec = 2
-nbdec = 10
+ndec = 6
+nbdec = 40
 dmmax = 0.05
-tmax = 10.0
+tmax = 20.0
 tprint = 5.0/40.0
 tnext = 0
-lambda = -0.615
-mu = -0.3
+#lambda = -0.615
 #rmsd = Inf
 ts = Array(Float64,Int(round(tmax/tprint))+1,1)
 cs = Array(Float64,Int(round(tmax/tprint))+1,NBMAX)
@@ -1076,38 +1087,59 @@ setAllToZero(NBMAX,ndec,nbdec,nbin,nbin1,imin,imax,iminold,imaxold,time,dt,dt2,t
 
 
 initMassBins(massb,massc,nbdec,nbin,dlogm,nbin1,dlnm,delm)
-initializeKs(massb,massc,index,delm,nbdec,nbin1)
+initializeKs(massb,massc,index,delm,nbdec,nbin,nbin1)
 #@bp
 ninits = [0.7778,0.0714,0.0159,0.0079,0.0]
+ninits = [1.0]
 #k = 2.0
-
-
+ninits = nsarray[1,2:end]
+ninits = ninits[ninits!=0.0]
+#println(nsarray[1,:])
 (ts,cs) = smol_main(ts,cs,ninits,mu,lambda,k,index,ndec,nbdec,nbin,nbin1,imin,imax,iminold,imaxold,time,dt,dt2,tmax,tprint,tnext,dmmax,dlogm,mmerge,rateav,nmin,dmfrac,dm,lossmx,ntot,ntot2,mtot,m2tot,massb,massc,delm,dlnm,mmax,mass,mden,mtmp,gain,loss,c,q,nden,rho,qj,qjp1,njmhalf,njphalf,njtmp,nitmp,w1,w2,ratio,analyticA1log)
 #@bp
 #figure("first five number concentrations")
 #figure(fig)
 #figure(5)
+#=
 for i=1:5
-	figure(5)
-	plot(40*ts,cs[:,i])
+	#@bp
+	figure(i+1)
+	plot((400/tmax)*ts,cs[:,i])
 	#figure(6)
+	#println("plotting: ",i)
 	plot(nsarray[:,1],nsarray[:,i+1],":")
-end
+	#a = analytic1(rate1,ts,i)
+	#plot(ts,a)
+end=#
 rmsdtemp = 0
-@bp
-for i=1:5
-	rmsdtemp += rmsdInterp(40*ts,cs[:,i],nsarray[:,1],nsarray[:,i+1])
+#@bp
+for i=1:nmols
+	#rmsdtemp += rmsdInterp(40*ts,cs[:,i],nsarray[:,1],nsarray[:,i+1])
+	rmsdtemp += rmsdInterp(nsarray[:,1],nsarray[:,i+1],(400/tmax)*ts,cs[:,i])
+	#println(rmsdtemp)
 end
-@bp
+#@bp
 if rmsdtemp < rmsd
 	tsmin = ts
 	csmin = cs
 	rmsd = rmsdtemp
 	kmin = k
+	mumin = mu
+	lambdamin = lambda
 end
 end
+end
+end
+ofile = open(outfname,"w")
 
-return (tsmin,csmin,nsarray,kmin)
+for lineno = 1:size(csmin,1)
+	for eno = 1:nmols
+		@printf(ofile,"%16.15e ",csmin[lineno,eno])
+	end
+	@printf(ofile,"\n")
+end
+close(ofile)
+return (tsmin,csmin,nsarray,kmin,mumin,lambdamin,rmsd)
 end
 
 function rmsdInterp(ts,cs,nsarray1,nsarray2)
@@ -1116,7 +1148,7 @@ function rmsdInterp(ts,cs,nsarray1,nsarray2)
 	prevind = 0
 	currind = 1
 	rmsd = 0
-	@bp
+	#@bp
 	for ind = 1:length(ts)
 		#@bp
 		if (currind <= length(nsarray1))
@@ -1142,6 +1174,32 @@ function interpBetween(p1,v1,p2,v2,p3)
 	b = v1 - p1*(v2-v1)/(p2-p1)
 	v3 = m*p3+b
 	return v3	
+end
+
+function long_run()
+fnames = ["42molsrun1.dat" "42molsrun2.dat" "42molsrun3.dat" "126molsrun1.dat" "126molsrun2.dat" "126molsrun3.dat" "200molsrun1.dat" "200molsrun2.dat" "200molsrun3.dat" "252molsrun1.dat" "252molsrun2.dat" "252molsrun3.dat" "378molsrun1.dat" "378molsrun2.dat" "378molsrun3.dat" "630molsrun1.dat" "630molsrun2.dat" "630molsrun3.dat"]
+
+ofnames = ["42molsrun1_out.dat" "42molsrun2_out.dat" "42molsrun3_out.dat" "126molsrun1_out.dat" "126molsrun2_out.dat" "126molsrun3_out.dat" "200molsrun1_out.dat" "200molsrun2_out.dat" "200molsrun3_out.dat" "252molsrun1_out.dat" "252molsrun2_out.dat" "252molsrun3_out.dat" "378molsrun1_out.dat" "378molsrun2_out.dat" "378molsrun3_out.dat" "630molsrun1_out.dat" "630molsrun2_out.dat" "630molsrun3_out.dat"]
+
+ks = [0.2 0.3 0.4 0.5 0.6 0.7]
+lambdas = [-0.3 -0.4 -0.5 -0.6 -0.7 -0.8]
+mus = [0.1 -0.01 -0.1 -0.3 -0.6 -0.9]
+kmults = [1 1 1 3 3 3 4.75 4.75 4.75 6 6 6 9 9 9 15 15 15]
+nmols = [42 42 42 126 126 126 200 200 200 252 252 252 378 378 378 630 630 630]
+for i = 1:length(fnames)
+   println(fnames[i])
+   (ts,cs,nsarray,k,mu,lambda,rmsd) = main(fnames[i],ofnames[i],nmols[i],kmults[i]*ks,mus,lambdas)
+   sfile = open("summary_file.dat","w")
+   #write(sfile,fnames[i])
+   #println("k is: ",k)
+   #println("mu is: ", mu)
+   #println("lambda is: ",lambda)
+   line = join([string(k) " " string(mu) " " string(lambda) " " string(rmsd) "\n"])
+   println(line)
+   write(sfile,line)
+   close(sfile)
+end
+
 end
 #main(
 #main(ndec,nbdec,nbin,nbin1,imin,imax,iminold,imaxold,time,dt,dt2,tmax,tprint,tnext,dmmax,dlogm,mmerge,rateav,nmin,dmfrac,dm,lossmx,ntot,ntot2,mtot,m2tot,massb,massc,delm,dlnm,mmax,mass,mden,mtmp,gain,loss,c,q,nden,rho,qj,qjp1,njmhalf,njphalf,njtmp,nitmp,w1,w2,ratio)
